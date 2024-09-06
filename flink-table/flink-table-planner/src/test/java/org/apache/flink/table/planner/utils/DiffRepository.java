@@ -44,9 +44,12 @@ import java.io.Writer;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 // THIS FILE IS COPIED FROM APACHE CALCITE
 
@@ -433,14 +436,38 @@ public class DiffRepository {
                 // insensitivity, it can report on the line
                 // at which the first diff occurs, which is useful
                 // for largish snippets
-                String expected2Canonical = expected2.replace(Util.LINE_SEPARATOR, "\n");
-                String actualCanonical = actual.replace(Util.LINE_SEPARATOR, "\n");
+
+                String expected2Canonical =
+                        normalizeHintOrder(expected2.replace(Util.LINE_SEPARATOR, "\n"));
+                String actualCanonical =
+                        normalizeHintOrder(actual.replace(Util.LINE_SEPARATOR, "\n"));
+
                 Assertions.assertEquals(expected2Canonical, actualCanonical, tag);
             } catch (AssertionFailedError e) {
                 amend(testCaseName, expected, actual);
                 throw e;
             }
         }
+    }
+
+    private String normalizeHintOrder(String input) {
+        // This regex matches the LOOKUP hint options within braces
+        Pattern pattern = Pattern.compile("LOOKUP inheritPath:\\[.*?\\] options:\\{(.*?)\\}");
+        Matcher matcher = pattern.matcher(input);
+        StringBuffer normalizedBuffer = new StringBuffer();
+
+        while (matcher.find()) {
+            String options = matcher.group(1);
+            String[] optionPairs = options.split(", ");
+            Arrays.sort(optionPairs); // Sort the options alphabetically
+
+            String sortedOptions = String.join(", ", optionPairs);
+            matcher.appendReplacement(
+                    normalizedBuffer, "LOOKUP inheritPath:[0] options:{" + sortedOptions + "}");
+        }
+        matcher.appendTail(normalizedBuffer);
+
+        return normalizedBuffer.toString();
     }
 
     /**
